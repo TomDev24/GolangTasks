@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -13,25 +14,37 @@ func makeRange(min, max int) []int {
     return a
 }
 
+// 1. using one bufferd channel
 func powerOfTwo(num int, out chan<- int){
 	out <- num * num
 }
 
-func main(){
-	start := time.Now()
-	nums := []int{2,4,6,8,10}
-	//nums := makeRange(1, 1000000)
+func buffChannel(nums []int) {
 	result := 0
-	c := make(chan int, len(nums))
-	defer close(c)
+	wg := sync.WaitGroup{}
+	ch := make(chan int, len(nums))
 
-
+	wg.Add(len(nums))
 	for i := range nums{
-		go powerOfTwo(nums[i], c)
+		go func(index int){
+			defer wg.Done()
+			powerOfTwo(nums[index], ch)
+		}(i)
 	}
-	for _ = range nums{
-		result += <-c
+	wg.Wait()
+	close(ch) // closing channel, also sends END message to recivers, so we will be able iterate over it
+
+	for v := range ch {
+		result += v
 	}
 	fmt.Println(result)
+}
+
+
+func main(){
+	buffChannel([]int{2,4,6,8,10})
+	fmt.Println("Testing speed with 1 million numbers")
+	start := time.Now()
+	buffChannel(makeRange(1, 1 << 20))
 	fmt.Println(time.Since(start))
 }
